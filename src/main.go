@@ -3,11 +3,18 @@
 package main
 
 import (
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 )
+
+func init() {
+	net.DefaultResolver = &net.Resolver{
+		PreferGo: true,
+	}
+}
 
 // 主函数
 func main() {

@@ -235,13 +235,18 @@ func httpPost(urlStr string, body map[string]string) (map[string]interface{}, er
 	for k, v := range body {
 		form.Set(k, v)
 	}
+	bodyEncoded := form.Encode()
 
-	req, err := http.NewRequest("POST", urlStr, strings.NewReader(form.Encode()))
+	req, err := http.NewRequest("POST", urlStr, strings.NewReader(bodyEncoded))
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 16; 2211133C Build/BP2A.250605.031.A3);unicom{version:android@12.0900};ltst;")
+
+	LogWrite("HTTP POST %s", urlStr)
+	LogWrite("Content-Type: application/x-www-form-urlencoded")
+	LogWrite("Body length: %d bytes", len(bodyEncoded))
 
 	var resp *http.Response
 	var lastErr error
@@ -250,11 +255,13 @@ func httpPost(urlStr string, body map[string]string) (map[string]interface{}, er
 		if lastErr == nil {
 			break
 		}
+		LogWrite("请求失败(第%d次): %v", i+1, lastErr)
 		if i < 2 {
 			time.Sleep(2 * time.Second)
 		}
 	}
 	if lastErr != nil {
+		LogWrite("请求最终失败: %v", lastErr)
 		return nil, lastErr
 	}
 	defer resp.Body.Close()
@@ -263,8 +270,11 @@ func httpPost(urlStr string, body map[string]string) (map[string]interface{}, er
 	if err != nil {
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
+	LogWrite("HTTP %d (%d bytes)", resp.StatusCode, len(respBytes))
+
 	var result map[string]interface{}
 	if err := json.Unmarshal(respBytes, &result); err != nil {
+		LogWrite("响应解析失败: %s", string(respBytes))
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 	return result, nil
