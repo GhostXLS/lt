@@ -5,7 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sync"
 	"time"
+)
+
+var (
+	logFile     *os.File
+	logFileName string
+	logMu       sync.Mutex
 )
 
 // 配置文件 (config.json)
@@ -71,8 +79,14 @@ func GetConfig() (Config, []Video) {
 
 // SaveVideoConfig 保存视频配置到 video.json
 func SaveVideoConfig(videos []Video) {
-	data, _ := json.MarshalIndent(videos, "", "  ")
-	os.WriteFile("video.json", data, 0666)
+	data, err := json.MarshalIndent(videos, "", "  ")
+	if err != nil {
+		FmtPrint("序列化视频配置失败: %v", err)
+		return
+	}
+	if err := os.WriteFile("video.json", data, 0666); err != nil {
+		FmtPrint("保存视频配置失败: %v", err)
+	}
 }
 
 // 定义内置的打印语句
@@ -91,33 +105,42 @@ func FmtPrint(data ...any) {
 
 // 写日志
 func LogWrite(data ...any) {
+	logMu.Lock()
+	defer logMu.Unlock()
+
 	date := time.Now().Format("2006-01-02 15:04:05")
 	processedData, hasFormat, formatStr := processArgs(data...)
-	// 检查日志文件夹
-	dirPath := "logs"
-	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-		err = os.MkdirAll(dirPath, 0777)
+
+	// 检查是否需要切换日志文件 (按天)
+	today := time.Now().Format("2006-01-02") + ".log"
+	if logFile == nil || today != logFileName {
+		if logFile != nil {
+			logFile.Close()
+		}
+		dirPath := "logs"
+		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+			if err := os.MkdirAll(dirPath, 0777); err != nil {
+				FmtPrint("日志文件夹创建失败", err)
+				return
+			}
+		}
+		filePath := filepath.Join(dirPath, today)
+		var err error
+		logFile, err = os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			FmtPrint("日志文件夹创建失败", err)
+			FmtPrint("日志文件创建失败", err)
+			logFile = nil
 			return
 		}
+		logFileName = today
 	}
-	// 打开日志文件
-	fileName := time.Now().Format("2006-01-02")
-	filePath := dirPath + "/" + fileName + ".log"
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		FmtPrint("日志文件创建失败", err)
-		return
-	}
-	defer file.Close()
-	// 写入日志
+
 	if len(data) == 1 {
-		file.WriteString(date + ": " + fmt.Sprintf("%v", processedData[0]) + "\n")
+		logFile.WriteString(date + ": " + fmt.Sprintf("%v", processedData[0]) + "\n")
 	} else if hasFormat {
-		file.WriteString(date + ": " + fmt.Sprintf(formatStr, processedData[1:]...) + "\n")
+		logFile.WriteString(date + ": " + fmt.Sprintf(formatStr, processedData[1:]...) + "\n")
 	} else {
-		file.WriteString(date + ": " + fmt.Sprintf("%v", processedData) + "\n")
+		logFile.WriteString(date + ": " + fmt.Sprintf("%v", processedData) + "\n")
 	}
 }
 

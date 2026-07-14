@@ -14,10 +14,16 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var wsDialer = websocket.Dialer{
+	TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true,
+	},
+}
+
 // 开始录制
 func GoRecording(config *Config, video *Video) {
 	// 临时变量
-	tempPath := config.Path + "/" + video.Name
+	tempPath := filepath.Join(config.Path, video.Name)
 	// 断开后重连
 	for {
 		// 连接服务器传输数据
@@ -46,17 +52,12 @@ func linkServer(video *Video) []byte {
 		Host:   video.WsHost,
 		Path:   "/h5player/live",
 	}
-	// 跳过证书验证
-	dialer := websocket.Dialer{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
+	// 跳过证书验证 - 使用全局 dialer
 	// 请求头
 	headers := http.Header{}
 	headers.Set("User-Agent", "ChinaUnicom/12.1200 (Android 16)")
 	// 发起连接
-	conn, _, err := dialer.Dial(uri.String(), headers)
+	conn, _, err := wsDialer.Dial(uri.String(), headers)
 	if err != nil {
 		FmtPrint(video.Name+" 无法连接: %v", err)
 		return bytes
@@ -100,20 +101,16 @@ func linkServer(video *Video) []byte {
 func getFileName(dirPath string) string {
 	// 添加日期文件夹
 	dateFolder := time.Now().Format("20060102")
-	fullPath := dirPath + "/" + dateFolder
+	fullPath := filepath.Join(dirPath, dateFolder)
 	// 检查文件夹是否存在
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		// 文件夹不存在，创建它
-		err := os.MkdirAll(fullPath, 0755)
-		if err != nil {
+		if err := os.MkdirAll(fullPath, 0755); err != nil {
 			FmtPrint("创建文件夹失败：", err)
 			os.Exit(0)
 		}
 	}
-	//文件名称
 	fileName := time.Now().Format("150405")
-	tempPathh := fullPath + "/" + fileName
-	return tempPathh
+	return filepath.Join(fullPath, fileName)
 }
 
 // 保存文件
@@ -130,7 +127,7 @@ func saveFile(fileName string, bytes *[]byte) {
 // 删除文件夹下的旧文件夹
 func DeleteOldFiles(config *Config, video *Video) {
 	// 临时变量
-	dirPath := config.Path + "/" + video.Name
+	dirPath := filepath.Join(config.Path, video.Name)
 	foldersToKeep := video.Count
 	// 读取文件夹
 	var folders []fs.FileInfo

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -30,17 +29,11 @@ func forwardLoopWithStream(server *gortsplib.Server, video *Video, fd *forwardDe
 		Host:   video.WsHost,
 		Path:   "/h5player/live",
 	}
-	// 跳过证书验证
-	dialer := websocket.Dialer{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	}
 	// 请求头
 	headers := http.Header{}
 	headers.Set("User-Agent", "ChinaUnicom/12.1200 (Android 16)")
 	// 发起连接
-	conn, _, err := dialer.Dial(uri.String(), headers)
+	conn, _, err := wsDialer.Dial(uri.String(), headers)
 	if err != nil {
 		FmtPrint(video.Name+" 无法连接: %v", err)
 		return
@@ -203,9 +196,8 @@ func forwardHEVCData(data []byte, fd *forwardDevice, server *gortsplib.Server, v
 		fd.ready = true
 	}
 
-	// 如果流已创建，先发送 VPS/SPS/PPS，再发送帧数据
-	if fd.ready {
-		// 发送参数集
+	// 如果流已创建，仅在首次发送参数集
+	if fd.ready && !fd.paramsSent {
 		if len(fd.vps) > 0 {
 			pkts, _ := fd.encoder.Encode([][]byte{fd.vps})
 			for _, pkt := range pkts {
@@ -224,6 +216,7 @@ func forwardHEVCData(data []byte, fd *forwardDevice, server *gortsplib.Server, v
 				fd.stream.WritePacketRTP(fd.media, pkt)
 			}
 		}
+		fd.paramsSent = true
 	}
 
 	fd.mu.Unlock()

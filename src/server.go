@@ -27,24 +27,27 @@ var staticFS embed.FS // 静态文件
 
 // StartHttp 启动网站服务
 func StartHttp(config *Config) {
-	// 解析用户名和密码
-	username := strings.Split(config.User, ":")[0]
-	password := strings.Split(config.User, ":")[1]
-	// 静态目录需要认证
+	parts := strings.SplitN(config.User, ":", 2)
+	if len(parts) != 2 {
+		FmtPrint("用户配置格式错误，应为 username:password")
+		return
+	}
+	username, password := parts[0], parts[1]
 	http.HandleFunc("/", basicAuth(func(w http.ResponseWriter, r *http.Request) {
-		subFS, _ := fs.Sub(staticFS, "static")
+		subFS, err := fs.Sub(staticFS, "static")
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		http.FileServer(http.FS(subFS)).ServeHTTP(w, r)
 	}, username, password))
-	// 文件列表需要认证
 	http.HandleFunc("/files", basicAuth(func(w http.ResponseWriter, r *http.Request) {
 		handleFileList(w, r, config.Path)
 	}, username, password))
-	// 文件内容需要认证
 	http.HandleFunc("/get", basicAuth(func(w http.ResponseWriter, r *http.Request) {
 		handleFileContent(w, r, config.Path)
 	}, username, password))
-	// 启动服务器
-	http.ListenAndServe(config.Host, nil)
+	FmtPrint("网站服务启动失败: %v", http.ListenAndServe(config.Host, nil))
 }
 
 // 身份验证中间件
@@ -83,31 +86,30 @@ func handleFileContent(w http.ResponseWriter, r *http.Request, dirPath string) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	// 获取文件名
 	filename := r.URL.Query().Get("file")
 	if filename == "" {
 		http.Error(w, "File parameter is required", http.StatusBadRequest)
 		return
 	}
-	// 打开文件
-	fullPath := filepath.Join(dirPath, filename)
+	fullPath := filepath.Join(dirPath, filepath.Clean(filename))
+	if !strings.HasPrefix(fullPath, filepath.Clean(dirPath)) {
+		http.Error(w, "Invalid file path", http.StatusBadRequest)
+		return
+	}
 	file, err := os.Open(fullPath)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 	defer file.Close()
-	// 获取文件信息以设置Content-Length
 	fileInfo, err := file.Stat()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
-	// 设置响应头
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(filename))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-	// 直接将文件流复制到响应流中
 	http.ServeContent(w, r, filename, fileInfo.ModTime(), file)
 }
 
@@ -140,6 +142,7 @@ type forwardDevice struct {
 	media          *description.Media
 	mu             sync.Mutex
 	ready          bool
+	paramsSent     bool
 	vps, sps, pps  []byte
 	encoder        *rtph265.Encoder
 	rtspAddr       string
@@ -195,7 +198,7 @@ func StartRtsp(config *Config, videos []Video) {
 	}
 
 	// 等待
-	panic(server.Wait())
+	FmtPrint("RTSP 服务已停止: %v", server.Wait())
 }
 
 // OnDescribe 处理 RTSP DESCRIBE 请求
@@ -259,5 +262,6 @@ func createStream(server *gortsplib.Server, fd *forwardDevice, video *Video, rts
 	}
 	fd.stream = stream
 	fd.media = desc.Medias[0]
+	fd.paramsSent = false
 	FmtPrint(video.Name+" 转发地址：rtsp://localhost%s/%s", rtspAddr, video.DeviceId)
 }

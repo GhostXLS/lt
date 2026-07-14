@@ -1,6 +1,11 @@
 package main
 
-import "time"
+import (
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+)
 
 // 主函数
 func main() {
@@ -10,28 +15,30 @@ func main() {
 	FmtPrint("请尊重开源协议，保留作者信息！")
 	FmtPrint("")
 
-	// 读取配置文件
 	config, videos := GetConfig()
 	if config.Path == "" {
 		config.Path = "./"
 	}
 
-	// 自动发现设备: 有 token 但没配置 video 时自动获取
 	if config.Token != "" && len(videos) == 0 {
 		videos = AutoConfig(config.Token, config.Mobile)
 		SaveVideoConfig(videos)
 	}
 
-	// 根据模式运行
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	switch config.Mode {
 	case "forward":
-		// 转发模式
-		RunForwardMode(&config, videos)
-
+		go RunForwardMode(&config, videos)
 	default:
-		// 录制模式 (默认)
-		RunRecordMode(&config, videos)
+		go RunRecordMode(&config, videos)
 	}
+
+	sig := <-sigChan
+	FmtPrint("收到信号 %v，正在退出...", sig)
+	time.Sleep(500 * time.Millisecond)
+	FmtPrint("程序已退出")
 }
 
 // RunRecordMode 录制模式

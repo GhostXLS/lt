@@ -23,8 +23,7 @@ func EncryptParam(plaintext string) string {
 	escaped := jsEscape(swapped)
 	b64 := base64.StdEncoding.EncodeToString([]byte(escaped))
 	n, _ := rand.Int(rand.Reader, big.NewInt(9000000000))
-	randNum := fmt.Sprintf("%010d", n.Int64()+10000000000)
-	prefix := base64.StdEncoding.EncodeToString([]byte(randNum))[:10]
+	prefix := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%010d", n.Int64())))[:10]
 	return prefix + b64
 }
 
@@ -106,12 +105,12 @@ func Md5Sum(text string) string {
 
 // RandomDigits 生成指定长度的随机数字字符串
 func RandomDigits(length int) string {
-	s := ""
-	for i := 0; i < length; i++ {
-		n, _ := rand.Int(rand.Reader, big.NewInt(10))
-		s += fmt.Sprintf("%d", n.Int64())
+	b := make([]byte, length)
+	rand.Read(b)
+	for i := range b {
+		b[i] = '0' + (b[i] % 10)
 	}
-	return s
+	return string(b)
 }
 
 // RandomHex 生成指定长度的随机十六进制字符串
