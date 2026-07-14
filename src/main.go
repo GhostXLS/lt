@@ -1,3 +1,5 @@
+//go:debug netdns=go
+
 package main
 
 import (
