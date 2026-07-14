@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -14,9 +15,20 @@ import (
 
 // ==================== 全局 HTTP 客户端 ====================
 
+var goResolver = &net.Resolver{
+	PreferGo: true,
+}
+
+var goDialer = &net.Dialer{
+	Resolver:  goResolver,
+	Timeout:   10 * time.Second,
+	KeepAlive: 30 * time.Second,
+}
+
 var httpClient = &http.Client{
 	Timeout: 15 * time.Second,
 	Transport: &http.Transport{
+		DialContext:           goDialer.DialContext,
 		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		ForceAttemptHTTP2:     false,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -246,7 +258,8 @@ func httpPost(urlStr string, body map[string]string) (map[string]interface{}, er
 
 	LogWrite("HTTP POST %s", urlStr)
 	LogWrite("Content-Type: application/x-www-form-urlencoded")
-	LogWrite("Body length: %d bytes", len(bodyEncoded))
+	LogWrite("User-Agent: Dalvik/2.1.0 (Linux; U; Android 16; ...);unicom{...};ltst;")
+	LogWrite("Body: %s", bodyEncoded)
 
 	var resp *http.Response
 	var lastErr error
