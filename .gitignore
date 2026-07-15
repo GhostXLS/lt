@@ -16,7 +16,6 @@ coverage.txt
 # Build
 bin/
 out/
-build/
 build_output/
 
 # AI
@@ -29,6 +28,11 @@ openspec/
 .vscode/
 *.swp
 *~
+
+# Android
+unicomMonitor-android/.gradle/
+unicomMonitor-android/app/build/
+unicomMonitor-android/build/
 
 # OS 生成文件
 Thumbs.db
