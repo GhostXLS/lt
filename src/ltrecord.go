@@ -1,23 +1,49 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-var wsDialer = websocket.Dialer{
-	TLSClientConfig: &tls.Config{
-		InsecureSkipVerify: true,
-	},
+var wsDialer *websocket.Dialer
+
+func initWSDialer(dns string) {
+	if dns == "" {
+		dns = "8.8.8.8:53"
+	}
+	if !strings.Contains(dns, ":") {
+		dns = net.JoinHostPort(dns, "53")
+	}
+
+	wsDialer = &websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+		NetDialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			d := net.Dialer{
+				Resolver: &net.Resolver{
+					PreferGo: true,
+					Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+						dd := net.Dialer{}
+						return dd.DialContext(ctx, network, dns)
+					},
+				},
+			}
+			return d.DialContext(ctx, network, addr)
+		},
+	}
 }
 
 // 开始录制

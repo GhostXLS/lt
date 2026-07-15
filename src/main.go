@@ -30,6 +30,7 @@ func main() {
 	}
 
 	initHTTPClient(config.Dns)
+	initWSDialer(config.Dns)
 
 	if config.Token != "" && len(videos) == 0 {
 		videos = AutoConfig(config.Token, config.Mobile)
