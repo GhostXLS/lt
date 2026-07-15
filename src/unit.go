@@ -26,7 +26,6 @@ type Config struct {
 	Token   string `json:"token"`   // 联通 token (token_online)
 	Mode    string `json:"mode"`    // 运行模式: record(录制) / forward(转发)
 	Dns     string `json:"dns"`     // DNS 服务器(ip:port)
-	WebDav  string `json:"webdav"`  // WebDAV 地址 (格式: http://user:pass@host:port/path)
 }
 
 // 视频录制配置 (video.json 中的每一项)
