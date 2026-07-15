@@ -1,4 +1,4 @@
-package main
+package unicomMonitor
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 
 var httpClient *http.Client
 
-func initHTTPClient(dns string) {
+func InitHTTPClient(dns string) {
 	if dns == "" {
 		dns = "8.8.8.8:53"
 	}

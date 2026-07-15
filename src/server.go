@@ -1,4 +1,4 @@
-package main
+package unicomMonitor
 
 import (
 	"embed"
@@ -26,7 +26,7 @@ var staticFS embed.FS // 静态文件
 // ==================== HTTP 网站服务 ====================
 
 // StartHttp 启动网站服务
-func StartHttp(config *Config) {
+ func StartHttp(config *Config) {
 	parts := strings.SplitN(config.User, ":", 2)
 	if len(parts) != 2 {
 		FmtPrint("用户配置格式错误，应为 username:password")
@@ -155,7 +155,7 @@ var forwardMu sync.RWMutex
 type rtspHandler struct{}
 
 // ForwardMode 启动 RTSP 转发模式
-func StartRtsp(config *Config, videos []Video) {
+ func StartRtsp(config *Config, videos []Video) {
 	FmtPrint("启动转发模式")
 
 	// 从配置提取 RTSP 地址

@@ -1,4 +1,4 @@
-package main
+package unicomMonitor
 
 import (
 	"crypto/md5"

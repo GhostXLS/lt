@@ -1,4 +1,4 @@
-package main
+package unicomMonitor
 
 import (
 	"context"
@@ -18,8 +18,9 @@ import (
 )
 
 var wsDialer *websocket.Dialer
+var guiRecordingStopped int32
 
-func initWSDialer(dns string) {
+func InitWSDialer(dns string) {
 	if dns == "" {
 		dns = "8.8.8.8:53"
 	}
@@ -151,7 +152,7 @@ func saveFile(fileName string, bytes *[]byte) {
 }
 
 // 删除文件夹下的旧文件夹
-func DeleteOldFiles(config *Config, video *Video) {
+ func DeleteOldFiles(config *Config, video *Video) {
 	// 临时变量
 	dirPath := filepath.Join(config.Path, video.Name)
 	foldersToKeep := video.Count

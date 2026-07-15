@@ -1,4 +1,4 @@
-package main
+package unicomMonitor
 
 import (
 	_ "embed"
@@ -39,6 +39,25 @@ type Video struct {
 	ShareId     string `json:"shareId"`     // 分享ID
 	Token       string `json:"token"`       // 视频云 token
 	RelayServer string `json:"relayServer"` // 中继服务器
+}
+
+// AppState 应用状态 (GUI 用)
+type AppState struct {
+	Token    string
+	Mobile   string
+	Devices  []DeviceInfo
+	SavePath string
+}
+
+// DeviceInfo 设备信息 (GUI 用)
+type DeviceInfo struct {
+	DeviceId    string
+	DeviceName  string
+	ChannelNo   string
+	Status      string
+	Region      string
+	RelayHost   string
+	RelayPort   string
 }
 
 //go:embed config.json
