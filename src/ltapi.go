@@ -5,38 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
 )
-
-// ==================== 全局 HTTP 客户端 ====================
-
-var goResolver = &net.Resolver{
-	PreferGo: true,
-}
-
-var goDialer = &net.Dialer{
-	Resolver:  goResolver,
-	Timeout:   10 * time.Second,
-	KeepAlive: 30 * time.Second,
-}
-
-var httpClient = &http.Client{
-	Timeout: 15 * time.Second,
-	Transport: &http.Transport{
-		DialContext:           goDialer.DialContext,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		ForceAttemptHTTP2:     false,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-	},
-}
 
 // ==================== API 常量 & 类型 ====================
 
@@ -52,7 +26,6 @@ type deviceInfo struct {
 	DeviceId   string // 设备ID
 	DeviceName string // 设备名称
 	ChannelNo  string // 通道号
-	ShareId    string // 分享ID
 	Status     string // 在线状态
 	Region     string // 服务器区域
 	RelayHost  string // 中继主机
@@ -70,7 +43,7 @@ func AutoConfig(tokenOnline, mobile string) []Video {
 	FmtPrint("获取账号中的摄像头设备...")
 
 	// 刷新 token_online 登录
-	privateToken, _, err := refreshToken(tokenOnline)
+	privateToken, _, err := refreshToken(tokenOnline, mobile)
 	if err != nil {
 		FmtPrint("刷新登录失败: %v", err)
 		return nil
@@ -141,7 +114,6 @@ func AutoConfig(tokenOnline, mobile string) []Video {
 			WsHost:      dev.Region,
 			DeviceId:    dev.DeviceId,
 			ChannelNo:   dev.ChannelNo,
-			ShareId:     dev.ShareId,
 			Token:       cloudToken,
 			RelayServer: relayServer,
 		})
@@ -153,93 +125,7 @@ func AutoConfig(tokenOnline, mobile string) []Video {
 	return videos
 }
 
-// ==================== HTTP 请求辅助 ====================
-
-// httpPostWithCookie POST 请求，支持自定义 Cookie
-func httpPostWithCookie(urlStr string, body map[string]string, cookie string) (map[string]interface{}, error) {
-	form := url.Values{}
-	for k, v := range body {
-		form.Set(k, v)
-	}
-
-	req, err := http.NewRequest("POST", urlStr, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 16; 2211133C Build/BP2A.250605.031.A3);unicom{version:android@12.0900};ltst;")
-	if cookie != "" {
-		req.Header.Set("Cookie", cookie)
-	}
-
-	var resp *http.Response
-	var lastErr error
-	for i := 0; i < 3; i++ {
-		resp, lastErr = httpClient.Do(req)
-		if lastErr == nil {
-			break
-		}
-		if i < 2 {
-			time.Sleep(2 * time.Second)
-		}
-	}
-	if lastErr != nil {
-		return nil, lastErr
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
-	var result map[string]interface{}
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
-	}
-	return result, nil
-}
-
-// getCookieValue 从 Cookie 字符串中提取指定 key 的值
-func getCookieValue(cookieStr, key string) string {
-	for _, c := range strings.Split(cookieStr, ";") {
-		c = strings.TrimSpace(c)
-		if strings.HasPrefix(c, key+"=") {
-			return strings.TrimPrefix(c, key+"=")
-		}
-	}
-	return ""
-}
-
-// parseResponseCookies 从响应中提取并合并 Cookie
-func mergeCookies(existing, newCookies string) string {
-	if newCookies == "" {
-		return existing
-	}
-	cookieMap := make(map[string]string)
-	// 先解析已有的
-	for _, c := range strings.Split(existing, ";") {
-		c = strings.TrimSpace(c)
-		if idx := strings.Index(c, "="); idx > 0 {
-			cookieMap[c[:idx]] = c[idx+1:]
-		}
-	}
-	// 覆盖新的
-	for _, c := range strings.Split(newCookies, ";") {
-		c = strings.TrimSpace(c)
-		if idx := strings.Index(c, "="); idx > 0 {
-			key := c[:idx]
-			val := c[idx+1:]
-			if key != "Domain" && key != "Path" && key != "Expires" && key != "Max-Age" && key != "HttpOnly" && key != "Secure" && key != "SameSite" {
-				cookieMap[key] = val
-			}
-		}
-	}
-	var pairs []string
-	for k, v := range cookieMap {
-		pairs = append(pairs, k+"="+v)
-	}
-	return strings.Join(pairs, "; ")
-}
+// ==================== 登录链路 ====================
 
 // httpPost 通用 POST 请求 (application/x-www-form-urlencoded)
 func httpPost(urlStr string, body map[string]string) (map[string]interface{}, error) {
@@ -247,64 +133,64 @@ func httpPost(urlStr string, body map[string]string) (map[string]interface{}, er
 	for k, v := range body {
 		form.Set(k, v)
 	}
-	bodyEncoded := form.Encode()
 
-	req, err := http.NewRequest("POST", urlStr, strings.NewReader(bodyEncoded))
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
+	req, _ := http.NewRequest("POST", urlStr, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 16; 2211133C Build/BP2A.250605.031.A3);unicom{version:android@12.0900};ltst;")
+	req.Header.Set("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 16; 23127PN0CC Build/BP2A.250605.031.A3);unicom{version:android@12.1300};ltst;")
 
-	LogWrite("HTTP POST %s", urlStr)
-	LogWrite("Content-Type: application/x-www-form-urlencoded")
-	LogWrite("User-Agent: Dalvik/2.1.0 (Linux; U; Android 16; ...);unicom{...};ltst;")
-	LogWrite("Body: %s", bodyEncoded)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			ForceAttemptHTTP2:     false,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+	}
 
+	// 重试3次
 	var resp *http.Response
 	var lastErr error
 	for i := 0; i < 3; i++ {
-		resp, lastErr = httpClient.Do(req)
+		resp, lastErr = client.Do(req)
 		if lastErr == nil {
 			break
 		}
-		LogWrite("请求失败(第%d次): %v", i+1, lastErr)
 		if i < 2 {
 			time.Sleep(2 * time.Second)
 		}
 	}
 	if lastErr != nil {
-		LogWrite("请求最终失败: %v", lastErr)
 		return nil, lastErr
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
-	LogWrite("HTTP %d (%d bytes)", resp.StatusCode, len(respBytes))
-
+	respBytes, _ := io.ReadAll(resp.Body)
 	var result map[string]interface{}
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		LogWrite("响应解析失败: %s", string(respBytes))
-		return nil, fmt.Errorf("解析响应失败: %w", err)
-	}
+	json.Unmarshal(respBytes, &result)
 	return result, nil
 }
 
 // httpGet 通用 GET 请求
 func httpGet(urlStr string) (map[string]interface{}, error) {
-	req, err := http.NewRequest("GET", urlStr, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
-	}
+	req, _ := http.NewRequest("GET", urlStr, nil)
 	req.Header.Set("User-Agent", "ChinaUnicom/12.1200 (Android 16)")
 
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			ForceAttemptHTTP2:     false,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+	}
+
+	// 重试3次
 	var resp *http.Response
 	var lastErr error
 	for i := 0; i < 3; i++ {
-		resp, lastErr = httpClient.Do(req)
+		resp, lastErr = client.Do(req)
 		if lastErr == nil {
 			break
 		}
@@ -317,52 +203,21 @@ func httpGet(urlStr string) (map[string]interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
+	respBytes, _ := io.ReadAll(resp.Body)
 	var result map[string]interface{}
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
-	}
+	json.Unmarshal(respBytes, &result)
 	return result, nil
 }
 
-// ==================== 登录链路 ====================
-
-// GenLoginBody 生成登录请求 body (公共字段)
-func GenLoginBody(tokenOnline string) map[string]string {
-	deviceCode := RandomHex(32)
-	reqtime := fmt.Sprintf("%d", time.Now().UnixMilli())
-
-	return map[string]string{
-		"isFirstInstall":   "1",
-		"reqtime":          reqtime,
-		"deviceOS":         "android16",
-		"latitude":         "35.424505",
-		"netWay":           "Wifi",
-		"deviceCode":       deviceCode,
-		"version":          "android@12.1300",
-		"deviceId":         deviceCode,
-		"pushPlatform":     "XIAOMI",
-		"token_online":     tokenOnline,
-		"platformToken":    "",
-		"provinceChanel":   "general",
-		"appId":            "1602478f56565b0c47dc53c138cb715d96d812c292b64154bf319c7c2625ce1427890261803aef7037ce07ead56dc4afac80b7278667039bf740b45f924375dc5e062b3cd8a0b7f803d0736c4ee7aade",
-		"simOperator":      "5,%E4%B8%AD%E5%9B%BD%E7%94%B5%E4%BF%A1,460,11,cn%405,--,460,11,cn",
-		"deviceModel":      "23127PN0CC",
-		"step":             "background",
-		"androidId":        RandomHex(16),
-		"deviceBrand":      "Xiaomi",
-		"flushkey":         "2",
-		"uniqueIdentifier": "and" + RandomHex(32),
-		"longitude":        "115.516936",
-	}
-}
-
 // refreshToken 用 token_online 刷新登录，获取 private_token (JWT)
-func refreshToken(tokenOnline string) (privateToken, mobile string, err error) {
-	body := GenLoginBody(tokenOnline)
+// 注意: loginxhm.10010.com 已下线，改用 loginxx.10010.com
+// mobile 参数必须传入（服务器校验 token 与手机号的绑定关系）
+func refreshToken(tokenOnline, mobile string) (privateToken, desMobile string, err error) {
+	body := map[string]string{
+		"version":      "android@12.1300",
+		"token_online": tokenOnline,
+		"mobile":       mobile,
+	}
 
 	resp, err := httpPost("https://loginxx.10010.com/mobileService/onLine.htm", body)
 	if err != nil {
@@ -374,9 +229,9 @@ func refreshToken(tokenOnline string) (privateToken, mobile string, err error) {
 	}
 
 	privateToken = vdStr(resp, "private_token")
-	mobile = vdStr(resp, "desmobile")
-	FmtPrint("登录成功: %s", mobile)
-	return privateToken, mobile, nil
+	desMobile = vdStr(resp, "desmobile")
+	FmtPrint("登录成功: %s", desMobile)
+	return privateToken, desMobile, nil
 }
 
 // getTicketNative 用 JWT 获取联通票据
@@ -393,7 +248,7 @@ func getTicketNative(privateToken string) (string, error) {
 	if ticket == "" {
 		return "", fmt.Errorf("getTicketByNative 返回异常: %v", resp)
 	}
-	FmtPrint("获取 Ticket 成功")
+	FmtPrint("获取 Ticket: %s", ticket)
 	return ticket, nil
 }
 
@@ -421,27 +276,26 @@ func getAutoLoginToken(ticket string) (string, error) {
 		},
 	})
 
-	req, err := http.NewRequest("POST", "https://iotpservice.smartont.net/wohome/dispatcher", strings.NewReader(string(reqBody)))
-	if err != nil {
-		return "", fmt.Errorf("dispatcher 创建请求失败: %w", err)
-	}
+	req, _ := http.NewRequest("POST", "https://iotpservice.smartont.net/wohome/dispatcher", strings.NewReader(string(reqBody)))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 16; 2211133C Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/137.0.7151.115 Mobile Safari/537.36; unicom{version:android@12.1200,desmobile:0}")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Linux; Android 16; 23127PN0CC Build/BP2A.250605.031.A3; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/137.0.7151.115 Mobile Safari/537.36; unicom{version:android@12.1300,desmobile:0}")
 
-	resp, err := httpClient.Do(req)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("dispatcher 请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("dispatcher 读取响应失败: %w", err)
-	}
+	respBytes, _ := io.ReadAll(resp.Body)
 	var result map[string]interface{}
-	if err := json.Unmarshal(respBytes, &result); err != nil {
-		return "", fmt.Errorf("dispatcher 解析响应失败: %w", err)
-	}
+	json.Unmarshal(respBytes, &result)
 
 	rsp, _ := result["RSP"].(map[string]interface{})
 	data, _ := rsp["DATA"].(map[string]interface{})
@@ -449,7 +303,7 @@ func getAutoLoginToken(ticket string) (string, error) {
 	if accessToken == "" {
 		return "", fmt.Errorf("dispatcher 返回异常: %v", result)
 	}
-	FmtPrint("获取 accessToken 成功")
+	FmtPrint("获取 accessToken: %s", accessToken)
 	return accessToken, nil
 }
 
@@ -477,7 +331,7 @@ func cloudLogin(mobile, accessToken string) (string, error) {
 	if cloudToken == "" {
 		return "", fmt.Errorf("thirdLogin 返回异常: %v", resp)
 	}
-	FmtPrint("获取视频云 Token 成功")
+	FmtPrint("获取视频云 Token: %s", cloudToken)
 	return cloudToken, nil
 }
 
@@ -499,9 +353,6 @@ func getDeviceList(token string) []deviceInfo {
 
 	data, _ := resp["data"].(map[string]interface{})
 	devicesRaw, _ := data["devicelist"].([]interface{})
-	// if j, e := json.MarshalIndent(resp, "", "  "); e == nil {
-	// 	FmtPrint("设备列表响应:\n%s", string(j))
-	// }
 
 	var devices []deviceInfo
 	for _, d := range devicesRaw {
@@ -521,7 +372,6 @@ func getDeviceList(token string) []deviceInfo {
 			DeviceId:   vdStr(dev, "deviceid"),
 			DeviceName: vdStr(dev, "devicename"),
 			ChannelNo:  vdStr(dev, "channelNo"),
-			ShareId:    vdStr(dev, "shareid"),
 			Status:     vdStr(dev, "onlineStatus"),
 			Region:     region,
 			RelayHost:  relayHost,
@@ -583,7 +433,7 @@ func getWsHost(token, deviceId string) string {
 }
 
 // BuildParamMsg 构建 WebSocket 连接时发送的 _paramStr_ 参数
-func BuildParamMsg(token, deviceId, channelNo, shareId, relayServer, deviceName string) string {
+func BuildParamMsg(token, deviceId, channelNo, relayServer, deviceName string) string {
 	payload := map[string]interface{}{
 		"requestTime":        fmt.Sprintf("%d", time.Now().UnixMilli()),
 		"productKey":         productKey,
@@ -596,7 +446,7 @@ func BuildParamMsg(token, deviceId, channelNo, shareId, relayServer, deviceName 
 		"channel":            channelName,
 		"deviceName":         deviceName,
 		"clientId":           "WEBCLIENT_H5_" + RandomDigits(22) + fmt.Sprintf("%d", time.Now().UnixMilli()),
-		"shareId":            shareId,
+		"shareId":            "",
 		"relayServer":        relayServer,
 		"isSDCardPlayback":   "false",
 		"preConnect":         "false",
@@ -619,29 +469,28 @@ func vdPost(apiPath string, payload map[string]interface{}) (map[string]interfac
 	paramStr := EncryptParam(string(jsonBytes))
 
 	body := "_paramStr_=" + paramStr
-	req, err := http.NewRequest("POST", vdFileHost+apiPath, strings.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("vdPost 创建请求失败: %w", err)
-	}
+	req, _ := http.NewRequest("POST", vdFileHost+apiPath, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", "ChinaUnicom/12.1200 (Android 16)")
 
-	resp, err := httpClient.Do(req)
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("vdPost 读取响应失败: %w", err)
-	}
+	respBytes, _ := io.ReadAll(resp.Body)
 	plain := DecryptParam(string(respBytes))
 
 	var result map[string]interface{}
-	if err := json.Unmarshal([]byte(plain), &result); err != nil {
-		return nil, fmt.Errorf("vdPost 解析响应失败: %w", err)
-	}
+	json.Unmarshal([]byte(plain), &result)
 	return result, nil
 }
 
