@@ -1,6 +1,8 @@
 package com.unicom.monitor
 
 import android.content.*
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -14,6 +16,10 @@ import com.unicom.monitor.service.MonitorService
 import com.unicom.monitor.ui.DeviceListActivity
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.Manifest
+import android.util.Log
 
 class MainActivity : AppCompatActivity() {
     companion object {
@@ -52,6 +58,8 @@ class MainActivity : AppCompatActivity() {
         btnPreview = findViewById(R.id.btnPreview)
         tvStatus = findViewById(R.id.tvStatus)
         surfaceView = findViewById<SurfaceView>(R.id.surfaceView)
+
+        requestPermissions()
 
         loadConfig()
 
@@ -158,5 +166,35 @@ class MainActivity : AppCompatActivity() {
         h265Player = null
         previewRunning = false
         btnPreview.text = "实时预览"
+    }
+
+    private fun requestPermissions() {
+        val permissions = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missing.toTypedArray(), 100)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 100) {
+            val denied = grantResults.any { it != PackageManager.PERMISSION_GRANTED }
+            if (denied) {
+                tvStatus.text = "需要存储和通知权限才能正常使用"
+            }
+        }
     }
 }
