@@ -62,7 +62,7 @@ func GoRecording(config *Config, video *Video) {
 			continue
 		}
 		// 文件名称
-		fileName := getFileName(tempPath) + ".flv"
+		fileName := getFileName(tempPath) + ".hevc"
 		// 保存文件
 		saveFile(fileName, &bytes)
 		// 录制完成
@@ -101,35 +101,26 @@ func linkServer(video *Video) []byte {
 	}
 	FmtPrint(video.Name + " 已连接，开始录制")
 
-		// 接收消息
+	// 接收消息
 	for {
 		_, response, err := conn.ReadMessage()
 		if err != nil {
 			FmtPrint(video.Name+" 连接断开: %v", err)
 			return bytes
 		}
-		if len(response) <= 1 {
-			continue
-		}
-		// 跳过 JSON 控制消息 (URL 编码的 JSON 以 %7B 开头)
-		if isJSONControl(response) {
-			continue
-		}
-		// 去掉首字节(消息类型标记)，保留 FLV 裸数据
-		flvData := response[1:]
-		bytes = append(bytes, flvData...)
-		if len(bytes) > 1024*1024*video.Size {
-			return bytes
+		// 检查特定条件
+		if len(response) > 1 {
+			// 打印数据的长度
+			// FmtPrint("数据长度：", len(bytes))
+			// 拼接数据
+			bytes = append(bytes, response[:]...)
+			// 结束条件
+			if len(bytes) > 1024*1024*video.Size {
+				// 结束
+				return bytes
+			}
 		}
 	}
-}
-
-func isJSONControl(data []byte) bool {
-	limit := len(data)
-	if limit > 50 {
-		limit = 50
-	}
-	return strings.Contains(string(data[:limit]), "%7B")
 }
 
 // 获取文件名称
