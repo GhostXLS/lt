@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -16,7 +19,32 @@ import (
 
 // ==================== 全局 HTTP 客户端 ====================
 
-var goResolver = &net.Resolver{PreferGo: true}
+func getSystemDNS() string {
+	f, err := os.Open("/etc/resolv.conf")
+	if err != nil {
+		return "8.8.8.8:53"
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "nameserver") {
+			parts := strings.Fields(line)
+			if len(parts) >= 2 {
+				return net.JoinHostPort(parts[1], "53")
+			}
+		}
+	}
+	return "8.8.8.8:53"
+}
+
+var goResolver = &net.Resolver{
+	PreferGo: true,
+	Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		d := net.Dialer{}
+		return d.DialContext(ctx, network, getSystemDNS())
+	},
+}
 
 var goDialer = &net.Dialer{
 	Resolver:  goResolver,
