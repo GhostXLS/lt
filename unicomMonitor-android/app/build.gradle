@@ -6,7 +6,6 @@ plugins {
 android {
     namespace 'com.unicom.monitor'
     compileSdk 34
-
     defaultConfig {
         applicationId "com.unicom.monitor"
         minSdk 26
@@ -14,7 +13,6 @@ android {
         versionCode 1
         versionName "1.0"
     }
-
     buildTypes {
         release {
             minifyEnabled false
@@ -27,6 +25,9 @@ android {
     }
     kotlinOptions {
         jvmTarget = '1.8'
+    }
+    buildFeatures {
+        viewBinding true
     }
 }
 

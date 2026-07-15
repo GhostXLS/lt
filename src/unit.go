@@ -18,14 +18,15 @@ var (
 
 // 配置文件 (config.json)
 type Config struct {
-	Host   string `json:"host"`   // 监听地址
-	User   string `json:"user"`   // 用户信息
-	Path   string `json:"path"`   // 保存路径
-	Sleep  int    `json:"sleep"`  // 重连间隔
-	Mobile string `json:"mobile"` // 手机号
-	Token  string `json:"token"`  // 联通 token (token_online)
-	Mode   string `json:"mode"`   // 运行模式: record(录制) / forward(转发)
-	Dns    string `json:"dns"`    // DNS 服务器(ip:port)
+	Host    string `json:"host"`    // 监听地址
+	User    string `json:"user"`    // 用户信息
+	Path    string `json:"path"`    // 保存路径
+	Sleep   int    `json:"sleep"`   // 重连间隔
+	Mobile  string `json:"mobile"`  // 手机号
+	Token   string `json:"token"`   // 联通 token (token_online)
+	Mode    string `json:"mode"`    // 运行模式: record(录制) / forward(转发)
+	Dns     string `json:"dns"`     // DNS 服务器(ip:port)
+	WebDav  string `json:"webdav"`  // WebDAV 地址 (格式: http://user:pass@host:port/path)
 }
 
 // 视频录制配置 (video.json 中的每一项)

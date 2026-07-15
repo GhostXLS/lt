@@ -66,6 +66,12 @@ func GoRecording(config *Config, video *Video) {
 		fileName := GetFileName(tempPath) + ".hevc"
 		// 保存文件
 		SaveFile(fileName, bytes)
+		// 上传到 WebDAV
+		if IsWebDavEnabled(config) {
+			if err := SaveToWebDav(config, fileName); err != nil {
+				FmtPrint("WebDAV 上传失败: " + err.Error())
+			}
+		}
 		// 录制完成
 		FmtPrint(video.Name + " 录制完成：" + fileName)
 	}
