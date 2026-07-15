@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">联通监控</string>
+    <string name="notification_title">联通监控录制</string>
+</resources>

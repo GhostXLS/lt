@@ -1,0 +1,10 @@
+{
+  "host": ":25678",
+  "user": "root:root",
+  "path": "/storage/emulated/0/unicomMonitor/videos/",
+  "sleep": 60,
+  "mobile": "13800138000",
+  "token": "your_token_online_here",
+  "mode": "record",
+  "dns": ""
+}
