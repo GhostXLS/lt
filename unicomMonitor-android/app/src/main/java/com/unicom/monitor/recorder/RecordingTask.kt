@@ -20,10 +20,12 @@ class RecordingTask(
 ) {
     companion object {
         const val TAG = "RecordingTask"
+        const val RTSP_PORT = 8554
     }
 
     private var wsClient: WsClient? = null
     private var isRecording = false
+    private var rtspServer: com.unicom.monitor.rtsp.SimpleRtspServer? = null
 
     suspend fun start() {
         if (isRecording) return
@@ -65,32 +67,50 @@ class RecordingTask(
                 .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
                 .build()
 
-            wsClient = WsClient(
-                client = okHttpClient,
-                wsHost = wsHost,
-                token = cloudToken,
-                deviceId = device.deviceId,
-                channelNo = device.channelNo,
-                relayServer = relayServer,
-                deviceName = device.name,
-                outputFile = outputFile,
-                onStatusChanged = onStatusChanged
-            )
-            wsClient?.start()
+                wsClient = WsClient(
+                    client = okHttpClient,
+                    wsHost = wsHost,
+                    token = cloudToken,
+                    deviceId = device.deviceId,
+                    channelNo = device.channelNo,
+                    relayServer = relayServer,
+                    deviceName = device.name,
+                    outputFile = outputFile,
+                    onStatusChanged = onStatusChanged,
+                    onVideoFrame = { flvData ->
+                        // 转发到 RTSP 服务器
+                        rtspServer?.sendVideoData(device.deviceId, flvData)
+                    }
+                )
+                wsClient?.start()
 
-            // 保持运行
-            while (isRecording) {
-                delay(1000)
-            }
+                // 启动 RTSP 转发
+                rtspServer = com.unicom.monitor.rtsp.SimpleRtspServer(
+                    port = RTSP_PORT,
+                    onStart = {
+                        onStatusChanged("RTSP 已启动: rtsp://localhost:$RTSP_PORT/${device.deviceId}")
+                    },
+                    onStop = {
+                        onStatusChanged("RTSP 已停止")
+                    }
+                )
+                rtspServer?.start()
+
+                // 保持运行
+                while (isRecording) {
+                    delay(1000)
+                }
 
         } catch (e: Exception) {
             Log.e(TAG, "Recording error", e)
             onStatusChanged("录制出错: ${e.message}")
-        } finally {
-            wsClient?.stop()
-            wsClient = null
-            isRecording = false
-        }
+            } finally {
+                wsClient?.stop()
+                wsClient = null
+                rtspServer?.stop()
+                rtspServer = null
+                isRecording = false
+            }
     }
 
     fun stop() {

@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp">
+    android:padding="16dp">
 
     <EditText
         android:id="@+id/etTokenOnline"
@@ -44,6 +44,36 @@
             android:textColor="#000" />
     </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp">
+
+        <Button
+            android:id="@+id/btnDeviceList"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="设备列表"
+            android:textColor="#000" />
+
+        <Button
+            android:id="@+id/btnPreview"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="实时预览"
+            android:textColor="#000" />
+    </LinearLayout>
+
+    <SurfaceView
+        android:id="@+id/surfaceView"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_marginTop="12dp"
+        android:background="#000" />
+
     <TextView
         android:id="@+id/tvStatus"
         android:layout_width="match_parent"
@@ -51,6 +81,6 @@
         android:text="就绪"
         android:textSize="16sp"
         android:textColor="#000"
-        android:layout_marginTop="24dp" />
+        android:layout_marginTop="12dp" />
 
 </LinearLayout>

@@ -22,6 +22,8 @@ class MonitorService : Service() {
         const val EXTRA_TOKEN_ONLINE = "token_online"
         const val EXTRA_MOBILE = "mobile"
         const val EXTRA_DEVICE_INDEX = "device_index"
+        const val EXTRA_DEVICE_ID = "device_id"
+        const val EXTRA_DEVICE_TOKEN = "device_token"
     }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -41,7 +43,9 @@ class MonitorService : Service() {
                 val tokenOnline = intent.getStringExtra(EXTRA_TOKEN_ONLINE) ?: ""
                 val mobile = intent.getStringExtra(EXTRA_MOBILE) ?: ""
                 val deviceIndex = intent.getIntExtra(EXTRA_DEVICE_INDEX, 0)
-                startRecording(tokenOnline, mobile, deviceIndex)
+                val deviceId = intent.getStringExtra(EXTRA_DEVICE_ID) ?: ""
+                val deviceToken = intent.getStringExtra(EXTRA_DEVICE_TOKEN) ?: ""
+                startRecording(tokenOnline, mobile, deviceIndex, deviceId, deviceToken)
             }
             ACTION_STOP -> {
                 stopRecording()
@@ -60,21 +64,38 @@ class MonitorService : Service() {
         recordingTask?.stop()
     }
 
-    private fun startRecording(tokenOnline: String, mobile: String, deviceIndex: Int) {
+    private fun startRecording(
+        tokenOnline: String,
+        mobile: String,
+        deviceIndex: Int,
+        deviceId: String,
+        deviceToken: String
+    ) {
         scope.launch {
             try {
                 updateNotification("正在登录...")
-                val (privateToken, desMobile) = apiClient!!.refreshToken(tokenOnline, mobile)
-                val ticket = apiClient!!.getTicketNative(privateToken)
-                val accessToken = apiClient!!.getAutoLoginToken(ticket)
-                val cloudToken = apiClient!!.cloudLogin(mobile, accessToken)
-                val devices = apiClient!!.getDeviceList(cloudToken)
+                val cloudToken: String = if (deviceToken.isNotEmpty()) {
+                    deviceToken
+                } else {
+                    val (privateToken, _) = apiClient!!.refreshToken(tokenOnline, mobile)
+                    val ticket = apiClient!!.getTicketNative(privateToken)
+                    val accessToken = apiClient!!.getAutoLoginToken(ticket)
+                    apiClient!!.cloudLogin(mobile, accessToken)
+                }
 
-                if (deviceIndex >= devices.size) {
-                    updateNotification("设备索引越界")
+                val devices = apiClient!!.getDeviceList(cloudToken)
+                val device: Device? = when {
+                    deviceId.isNotEmpty() && devices.any { it.deviceId == deviceId } -> {
+                        devices.first { it.deviceId == deviceId }
+                    }
+                    deviceIndex < devices.size -> devices[deviceIndex]
+                    else -> null
+                }
+
+                if (device == null) {
+                    updateNotification("设备未找到")
                     return@launch
                 }
-                val device = devices[deviceIndex]
 
                 statusCallback = { status ->
                     updateNotification(status)

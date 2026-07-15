@@ -5,9 +5,12 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.SurfaceView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
 import com.unicom.monitor.model.Config
+import com.unicom.monitor.player.H265Player
+import com.unicom.monitor.ui.DeviceListActivity
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -22,8 +25,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etMobile: EditText
     private lateinit var btnStart: Button
     private lateinit var btnStop: Button
+    private lateinit var btnDeviceList: Button
+    private lateinit var btnPreview: Button
     private lateinit var tvStatus: TextView
+    private lateinit var surfaceView: SurfaceView
     private var config: Config? = null
+    private var h265Player: H265Player? = null
+    private var previewRunning = false
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             val status = intent?.getStringExtra(EXTRA_STATUS) ?: return
@@ -39,7 +47,10 @@ class MainActivity : AppCompatActivity() {
         etMobile = findViewById(R.id.etMobile)
         btnStart = findViewById(R.id.btnStart)
         btnStop = findViewById(R.id.btnStop)
+        btnDeviceList = findViewById(R.id.btnDeviceList)
+        btnPreview = findViewById(R.id.btnPreview)
         tvStatus = findViewById(R.id.tvStatus)
+        surfaceView = findViewById(R.id.surfaceView)
 
         loadConfig()
 
@@ -57,7 +68,34 @@ class MainActivity : AppCompatActivity() {
             stopRecording()
         }
 
-        // 注册状态广播接收器
+        btnDeviceList.setOnClickListener {
+            val tokenOnline = etTokenOnline.text.toString().trim()
+            val mobile = etMobile.text.toString().trim()
+            if (tokenOnline.isEmpty() || mobile.isEmpty()) {
+                tvStatus.text = "请先输入登录信息"
+                return@setOnClickListener
+            }
+            val intent = Intent(this, DeviceListActivity::class.java).apply {
+                putExtra(DeviceListActivity.EXTRA_TOKEN_ONLINE, tokenOnline)
+                putExtra(DeviceListActivity.EXTRA_MOBILE, mobile)
+            }
+            startActivity(intent)
+        }
+
+        btnPreview.setOnClickListener {
+            val tokenOnline = etTokenOnline.text.toString().trim()
+            val mobile = etMobile.text.toString().trim()
+            if (tokenOnline.isEmpty() || mobile.isEmpty()) {
+                tvStatus.text = "请先输入登录信息"
+                return@setOnClickListener
+            }
+            if (previewRunning) {
+                stopPreview()
+            } else {
+                startPreview(tokenOnline, mobile, 0)
+            }
+        }
+
         val filter = IntentFilter(ACTION_STATUS)
         registerReceiver(statusReceiver, filter)
     }
@@ -65,6 +103,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(statusReceiver)
+        stopPreview()
     }
 
     private fun loadConfig() {
@@ -80,7 +119,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "loadConfig error", e)
+            android.util.Log.e(TAG, "loadConfig error", e)
         }
     }
 
@@ -91,7 +130,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(MonitorService.EXTRA_MOBILE, mobile)
             putExtra(MonitorService.EXTRA_DEVICE_INDEX, deviceIndex)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForegroundService(intent)
         } else {
             startService(intent)
@@ -105,5 +144,18 @@ class MainActivity : AppCompatActivity() {
         }
         startService(intent)
         tvStatus.text = "已停止"
+    }
+
+    private fun startPreview(tokenOnline: String, mobile: String, deviceIndex: Int) {
+        // TODO: 实现实时预览
+        // 需要先登录获取 cloudToken，然后连接 WebSocket，解码 H.265 到 SurfaceView
+        tvStatus.text = "预览功能开发中..."
+    }
+
+    private fun stopPreview() {
+        h265Player?.stop()
+        h265Player = null
+        previewRunning = false
+        btnPreview.text = "实时预览"
     }
 }

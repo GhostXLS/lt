@@ -20,7 +20,8 @@ class WsClient(
     private val relayServer: String,
     private val deviceName: String,
     private val outputFile: File,
-    private val onStatusChanged: (String) -> Unit
+    private val onStatusChanged: (String) -> Unit,
+    private val onVideoFrame: ((ByteArray) -> Unit)? = null
 ) {
     companion object {
         const val PRODUCT_KEY = "3bd0c1bc-f50"
@@ -66,7 +67,11 @@ class WsClient(
                         fileSink = outputFile.sink().buffer()
                         fileBuffer = fileSink
                     }
-                    fileBuffer?.write(data, 1, data.size - 1)
+                    val flvData = data.copyOfRange(1, data.size)
+                    fileBuffer?.write(flvData)
+
+                    // 回调视频帧 (用于预览/RTSP)
+                    onVideoFrame?.invoke(flvData)
                 } catch (e: Exception) {
                     Log.e(TAG, "onMessage error", e)
                 }
