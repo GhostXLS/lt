@@ -58,6 +58,9 @@ type DeviceInfo struct {
 	Region      string
 	RelayHost   string
 	RelayPort   string
+	Token       string
+	RelayServer string
+	WsHost      string
 }
 
 //go:embed config.json

@@ -53,26 +53,26 @@ func GoRecording(config *Config, video *Video) {
 	tempPath := filepath.Join(config.Path, video.Name)
 	// 断开后重连
 	for {
-		// 连接服务器传输数据
-		bytes := linkServer(video)
-		// 检查数据
-		if len(bytes) == 0 {
-			FmtPrint(video.Name + " 连接失败，稍后重连(" + strconv.Itoa(config.Sleep) + "秒)")
-			timeout := time.Duration(config.Sleep)
-			time.Sleep(timeout * time.Second)
-			continue
-		}
+	// 连接服务器传输数据
+	bytes, err := LinkServer(video)
+	// 检查数据
+	if err != nil || len(bytes) == 0 {
+		FmtPrint(video.Name + " 连接失败，稍后重连(" + strconv.Itoa(config.Sleep) + "秒)")
+		timeout := time.Duration(config.Sleep)
+		time.Sleep(timeout * time.Second)
+		continue
+	}
 		// 文件名称
-		fileName := getFileName(tempPath) + ".hevc"
+		fileName := GetFileName(tempPath) + ".hevc"
 		// 保存文件
-		saveFile(fileName, &bytes)
+		SaveFile(fileName, bytes)
 		// 录制完成
 		FmtPrint(video.Name + " 录制完成：" + fileName)
 	}
 }
 
 // 连接服务器
-func linkServer(video *Video) []byte {
+func LinkServer(video *Video) ([]byte, error) {
 	bytes := []byte{}
 	uri := url.URL{
 		Scheme: "wss",
@@ -87,7 +87,7 @@ func linkServer(video *Video) []byte {
 	conn, _, err := wsDialer.Dial(uri.String(), headers)
 	if err != nil {
 		FmtPrint(video.Name+" 无法连接: %v", err)
-		return bytes
+		return bytes, err
 	}
 	defer conn.Close()
 
@@ -98,7 +98,7 @@ func linkServer(video *Video) []byte {
 	err = conn.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
 		FmtPrint(video.Name+" 发送消息失败: %v", err)
-		return bytes
+		return bytes, err
 	}
 	FmtPrint(video.Name + " 已连接，开始录制")
 
@@ -107,7 +107,7 @@ func linkServer(video *Video) []byte {
 		_, response, err := conn.ReadMessage()
 		if err != nil {
 			FmtPrint(video.Name+" 连接断开: %v", err)
-			return bytes
+			return bytes, err
 		}
 		// 检查特定条件
 		if len(response) > 1 {
@@ -118,14 +118,14 @@ func linkServer(video *Video) []byte {
 			// 结束条件
 			if len(bytes) > 1024*1024*video.Size {
 				// 结束
-				return bytes
+				return bytes, nil
 			}
 		}
 	}
 }
 
 // 获取文件名称
-func getFileName(dirPath string) string {
+func GetFileName(dirPath string) string {
 	// 添加日期文件夹
 	dateFolder := time.Now().Format("20060102")
 	fullPath := filepath.Join(dirPath, dateFolder)
@@ -141,14 +141,15 @@ func getFileName(dirPath string) string {
 }
 
 // 保存文件
-func saveFile(fileName string, bytes *[]byte) {
+func SaveFile(fileName string, bytes []byte) (int64, error) {
 	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		FmtPrint("保存文件失败: ", err)
-		os.Exit(0)
+		return 0, err
 	}
 	defer file.Close()
-	file.Write(*bytes)
+	n, err := file.Write(bytes)
+	return int64(n), err
 }
 
 // 删除文件夹下的旧文件夹

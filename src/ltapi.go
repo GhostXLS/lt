@@ -87,35 +87,35 @@ func AutoConfig(tokenOnline, mobile string) []Video {
 	FmtPrint("获取账号中的摄像头设备...")
 
 	// 刷新 token_online 登录
-	privateToken, _, err := refreshToken(tokenOnline, mobile)
+	privateToken, _, err := RefreshToken(tokenOnline, mobile)
 	if err != nil {
 		FmtPrint("刷新登录失败: %v", err)
 		return nil
 	}
 
 	// 取联通票据
-	ticket, err := getTicketNative(privateToken)
+	ticket, err := GetTicketNative(privateToken)
 	if err != nil {
 		FmtPrint("获取票据失败: %v", err)
 		return nil
 	}
 
 	// 获取 accessToken
-	accessToken, err := getAutoLoginToken(ticket)
+	accessToken, err := GetAutoLoginToken(ticket)
 	if err != nil {
 		FmtPrint("获取 accessToken 失败: %v", err)
 		return nil
 	}
 
 	// 登录视频云平台
-	cloudToken, err := cloudLogin(mobile, accessToken)
+	cloudToken, err := CloudLogin(mobile, accessToken)
 	if err != nil {
 		FmtPrint("视频云登录失败: %v", err)
 		return nil
 	}
 
 	// 获取设备列表并生成配置
-	devices := getDeviceList(cloudToken)
+	devices := GetDeviceList(cloudToken)
 	if len(devices) == 0 {
 		FmtPrint("未发现任何设备")
 		return nil
@@ -256,8 +256,8 @@ func httpGet(urlStr string) (map[string]interface{}, error) {
 	return result, nil
 }
 
-// refreshToken 用 token_online 刷新登录，获取 private_token (JWT)
-func refreshToken(tokenOnline, mobile string) (privateToken, desMobile string, err error) {
+// RefreshToken 用 token_online 刷新登录，获取 private_token (JWT)
+func RefreshToken(tokenOnline, mobile string) (privateToken, desMobile string, err error) {
 	body := map[string]string{
 		"version":      "android@12.0900",
 		"token_online": tokenOnline,
@@ -278,8 +278,8 @@ func refreshToken(tokenOnline, mobile string) (privateToken, desMobile string, e
 	return privateToken, desMobile, nil
 }
 
-// getTicketNative 用 JWT 获取联通票据
-func getTicketNative(privateToken string) (string, error) {
+// GetTicketNative 用 JWT 获取联通票据
+func GetTicketNative(privateToken string) (string, error) {
 	appId := "edop_unicom_7da41905"
 	apiUrl := fmt.Sprintf("https://m.client.10010.com/edop_ng/getTicketByNative?appId=%s&token=%s", appId, url.QueryEscape(privateToken))
 
@@ -296,8 +296,8 @@ func getTicketNative(privateToken string) (string, error) {
 	return ticket, nil
 }
 
-// getAutoLoginToken 通过 wohome/dispatcher 获取 accessToken
-func getAutoLoginToken(ticket string) (string, error) {
+// GetAutoLoginToken 通过 wohome/dispatcher 获取 accessToken
+func GetAutoLoginToken(ticket string) (string, error) {
 	reqSeq := RandomDigits(5)
 	resTime := fmt.Sprintf("%d", time.Now().UnixMilli())
 
@@ -352,8 +352,8 @@ func getAutoLoginToken(ticket string) (string, error) {
 	return accessToken, nil
 }
 
-// cloudLogin 第三方登录获取视频云 token
-func cloudLogin(mobile, accessToken string) (string, error) {
+// CloudLogin 第三方登录获取视频云 token
+func CloudLogin(mobile, accessToken string) (string, error) {
 	deviceId := RandomDigits(16)
 
 	// 必须保持 key 顺序与 JS JSON.stringify 一致 (否则签名不对)
@@ -382,8 +382,8 @@ func cloudLogin(mobile, accessToken string) (string, error) {
 
 // ==================== 业务 API ====================
 
-// getDeviceList 获取账号下的摄像头设备列表
-func getDeviceList(token string) []deviceInfo {
+// GetDeviceList 获取账号下的摄像头设备列表
+func GetDeviceList(token string) []deviceInfo {
 	payload := map[string]interface{}{
 		"token":        token,
 		"productKey":   productKey,

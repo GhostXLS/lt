@@ -126,7 +126,7 @@ func recordingLoop(ctx context.Context, video unicomMonitor.DeviceInfo, s *Recor
 			RelayServer: video.RelayServer,
 		}
 
-		bytes, err := unicomMonitor.LinkServer(videoForServer)
+		bytes, err := unicomMonitor.LinkServer(&videoForServer)
 		if err != nil {
 			s.Error = "连接失败: " + err.Error()
 			s.Running = false
@@ -197,7 +197,7 @@ func refreshFileList() {
 		return
 	}
 
-	files, _ := listRecordFiles()
+	files := listRecordFiles()
 	fyne.Do(func() {
 		fileList.Length = func() int { return len(files) }
 		fileList.UpdateItem = func(id widget.ListItemID, item fyne.CanvasObject) {
@@ -267,12 +267,11 @@ func showLoginScreen(w fyne.Window) {
 
 	pathEntry := widget.NewEntry()
 	pathEntry.SetText(state.SavePath)
-	pathEntry.Disable = true
 
 	pathBtn := widget.NewButtonWithIcon("", theme.FolderOpenIcon(), func() {
-		dialog.ShowFolderOpen(func(uri fyne.URIReadCloser, err error) {
+		dialog.ShowFolderOpen(func(uri fyne.ListableURI, err error) {
 			if err == nil && uri != nil {
-				state.SavePath = uri.URI().Path()
+				state.SavePath = uri.Path()
 				pathEntry.SetText(state.SavePath)
 			}
 		}, w)
@@ -280,7 +279,8 @@ func showLoginScreen(w fyne.Window) {
 
 	statusLabel := widget.NewLabel("")
 
-	loginBtn := widget.NewButtonWithIcon("登录并获取设备", theme.LoginIcon(), func() {
+	loginBtn := widget.NewButtonWithIcon("登录并获取设备", theme.LoginIcon(), nil)
+	loginBtn.OnTapped = func() {
 		token := tokenEntry.Text
 		mobile := mobileEntry.Text
 		if token == "" || mobile == "" {
@@ -305,7 +305,7 @@ func showLoginScreen(w fyne.Window) {
 				showDeviceListScreen(w)
 			})
 		}()
-	})
+	}
 
 	form := container.NewVBox(
 		widget.NewLabel("联通摄像头监控"),
@@ -360,7 +360,7 @@ func showDeviceListScreen(w fyne.Window) {
 		func() int { return len(state.Devices) },
 		func() fyne.CanvasObject {
 			return container.NewHBox(
-				widget.NewIcon(theme.VideoIcon()),
+				widget.NewIcon(theme.FileVideoIcon()),
 				widget.NewLabel("设备名称"),
 				widget.NewLabel("通道号"),
 				widget.NewLabel("状态"),
@@ -402,18 +402,8 @@ func showMonitorScreen(w fyne.Window, dev unicomMonitor.DeviceInfo) {
 
 	statusCard = widget.NewCard("录制状态", "", widget.NewLabel("未开始录制"))
 
-	recordBtn = widget.NewButtonWithIcon("开始录制", theme.RecordIcon(), func() {
+	recordBtn = widget.NewButtonWithIcon("开始录制", theme.MediaRecordIcon(), func() {
 		if recordBtn.Text == "开始录制" {
-			videoForServer := unicomMonitor.Video{
-				Name:        dev.DeviceName,
-				Size:        10,
-				Count:       10,
-				WsHost:      dev.Region,
-				DeviceId:    dev.DeviceId,
-				ChannelNo:   dev.ChannelNo,
-				Token:       dev.Token,
-				RelayServer: dev.RelayServer,
-			}
 			startRecording(unicomMonitor.DeviceInfo{
 				DeviceId:   dev.DeviceId,
 				DeviceName: dev.DeviceName,
@@ -424,11 +414,11 @@ func showMonitorScreen(w fyne.Window, dev unicomMonitor.DeviceInfo) {
 				RelayPort:  dev.RelayPort,
 			})
 			recordBtn.SetText("停止录制")
-			recordBtn.SetIcon(theme.StopIcon())
+			recordBtn.SetIcon(theme.MediaStopIcon())
 		} else {
 			stopRecording(dev.DeviceName)
 			recordBtn.SetText("开始录制")
-			recordBtn.SetIcon(theme.RecordIcon())
+			recordBtn.SetIcon(theme.MediaRecordIcon())
 		}
 	})
 
@@ -436,7 +426,7 @@ func showMonitorScreen(w fyne.Window, dev unicomMonitor.DeviceInfo) {
 		func() int { return 0 },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
 		func(id widget.ListItemID, item fyne.CanvasObject) {
-			files, _ := listRecordFiles()
+			files := listRecordFiles()
 			if int(id) < len(files) {
 				item.(*widget.Label).SetText(files[id])
 			}
@@ -450,7 +440,7 @@ func showMonitorScreen(w fyne.Window, dev unicomMonitor.DeviceInfo) {
 			if monitorWin == nil {
 				return
 			}
-			files, _ := listRecordFiles()
+			files := listRecordFiles()
 			fyne.Do(func() {
 				if fileList != nil {
 					fileList.Length = func() int { return len(files) }
@@ -516,7 +506,6 @@ func doLogin(token, mobile string) ([]unicomMonitor.DeviceInfo, error) {
 		if dev.RelayHost == "" || dev.RelayPort == "" {
 			continue
 		}
-		relayServer := dev.RelayHost + ":" + dev.RelayPort
 		videos = append(videos, unicomMonitor.DeviceInfo{
 			DeviceId:   dev.DeviceId,
 			DeviceName: dev.DeviceName,
