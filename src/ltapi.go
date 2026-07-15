@@ -168,7 +168,7 @@ func httpPost(urlStr string, body map[string]string) (map[string]interface{}, er
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 16; 23127PN0CC Build/BP2A.250605.031.A3);unicom{version:android@12.1300};ltst;")
+	req.Header.Set("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 16; 2211133C Build/BP2A.250605.031.A3);unicom{version:android@12.0900};ltst;")
 
 	LogWrite("HTTP POST %s", urlStr)
 	LogWrite("Body: %s", bodyEncoded)
@@ -241,35 +241,13 @@ func httpGet(urlStr string) (map[string]interface{}, error) {
 }
 
 // refreshToken 用 token_online 刷新登录，获取 private_token (JWT)
-// mobile 参数必须传入（服务器校验 token 与手机号的绑定关系）
 func refreshToken(tokenOnline, mobile string) (privateToken, desMobile string, err error) {
-	deviceCode := RandomHex(32)
-	androidId := RandomHex(16)
-	reqtime := fmt.Sprintf("%d", time.Now().UnixMilli())
-
 	body := map[string]string{
-		"isFirstInstall":   "1",
-		"reqtime":          reqtime,
-		"deviceOS":         "android16",
-		"netWay":           "Wifi",
-		"deviceCode":       deviceCode,
-		"version":          "android@12.1300",
-		"deviceId":         deviceCode,
-		"pushPlatform":     "XIAOMI",
-		"token_online":     tokenOnline,
-		"platformToken":    "",
-		"provinceChanel":   "general",
-		"appId":            "1602478f56565b0c47dc53c138cb715d96d812c292b64154bf319c7c2625ce1427890261803aef7037ce07ead56dc4afac80b7278667039bf740b45f924375dc5e062b3cd8a0b7f803d0736c4ee7aade",
-		"simOperator":      "5,%E4%B8%AD%E5%9B%BD%E7%94%B5%E4%BF%A1,460,11,cn%405,--,460,11,cn",
-		"deviceModel":      "23127PN0CC",
-		"step":             "background",
-		"androidId":        androidId,
-		"deviceBrand":      "Xiaomi",
-		"flushkey":         "2",
-		"uniqueIdentifier": "and" + RandomHex(32),
+		"version":      "android@12.0900",
+		"token_online": tokenOnline,
 	}
 
-	resp, err := httpPost("https://loginxx.10010.com/mobileService/onLine.htm", body)
+	resp, err := httpPost("https://loginxhm.10010.com/mobileService/onLine.htm", body)
 	if err != nil {
 		return "", "", fmt.Errorf("onLine.htm 请求失败: %w", err)
 	}
