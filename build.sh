@@ -27,7 +27,7 @@ for os in windows linux darwin freebsd; do
         # 编译程序
         cd "$rootPath/src"
         outputFile="${outPath}${os}_${arch}${exe_suffix}"
-        go build -ldflags="-w -s" -trimpath -o "$outputFile"
+        go build -ldflags="-s -w" -trimpath -tags netgo -o "$outputFile"
         # 压缩文件
         zip -j "${outputFile}.zip" "$outputFile"
         # 压缩后删除原文件
