@@ -5,5 +5,6 @@
   "sleep": 60,
   "mobile": "13800138000",
   "token": "token",
-  "mode": "record"
+  "mode": "record",
+  "dns": "192.168.80.1:53"
 }

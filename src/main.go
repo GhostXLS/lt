@@ -29,6 +29,8 @@ func main() {
 		config.Path = "./"
 	}
 
+	initHTTPClient(config.Dns)
+
 	if config.Token != "" && len(videos) == 0 {
 		videos = AutoConfig(config.Token, config.Mobile)
 		SaveVideoConfig(videos)

@@ -25,6 +25,7 @@ type Config struct {
 	Mobile string `json:"mobile"` // 手机号
 	Token  string `json:"token"`  // 联通 token (token_online)
 	Mode   string `json:"mode"`   // 运行模式: record(录制) / forward(转发)
+	Dns    string `json:"dns"`    // DNS 服务器(ip:port)
 }
 
 // 视频录制配置 (video.json 中的每一项)

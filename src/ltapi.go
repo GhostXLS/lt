@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -11,7 +10,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -19,53 +17,43 @@ import (
 
 // ==================== 全局 HTTP 客户端 ====================
 
-func getSystemDNS() string {
-	f, err := os.Open("/etc/resolv.conf")
-	if err != nil {
-		return "8.8.8.8:53"
+var httpClient *http.Client
+
+func initHTTPClient(dns string) {
+	if dns == "" {
+		dns = "8.8.8.8:53"
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "nameserver") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				return net.JoinHostPort(parts[1], "53")
-			}
-		}
+	if !strings.Contains(dns, ":") {
+		dns = net.JoinHostPort(dns, "53")
 	}
-	return "8.8.8.8:53"
-}
 
-var goResolver = &net.Resolver{
-	PreferGo: true,
-	Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-		d := net.Dialer{}
-		return d.DialContext(ctx, network, getSystemDNS())
-	},
-}
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{}
+			return d.DialContext(ctx, network, dns)
+		},
+	}
 
-var goDialer = &net.Dialer{
-	Resolver:  goResolver,
-	Timeout:   10 * time.Second,
-	KeepAlive: 30 * time.Second,
-}
+	cookieJar, _ := cookiejar.New(nil)
 
-var cookieJar, _ = cookiejar.New(nil)
-
-var httpClient = &http.Client{
-	Timeout: 15 * time.Second,
-	Jar:     cookieJar,
-	Transport: &http.Transport{
-		DialContext:           goDialer.DialContext,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-		ForceAttemptHTTP2:     false,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-	},
+	httpClient = &http.Client{
+		Timeout: 15 * time.Second,
+		Jar:     cookieJar,
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Resolver:  resolver,
+				Timeout:   10 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+			ForceAttemptHTTP2:     false,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+		},
+	}
 }
 
 // ==================== API 常量 & 类型 ====================
