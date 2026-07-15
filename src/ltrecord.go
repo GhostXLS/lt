@@ -62,7 +62,7 @@ func GoRecording(config *Config, video *Video) {
 			continue
 		}
 		// 文件名称
-		fileName := getFileName(tempPath) + ".hevc"
+		fileName := getFileName(tempPath) + ".flv"
 		// 保存文件
 		saveFile(fileName, &bytes)
 		// 录制完成
@@ -101,24 +101,25 @@ func linkServer(video *Video) []byte {
 	}
 	FmtPrint(video.Name + " 已连接，开始录制")
 
-	// 接收消息
+		// 接收消息
 	for {
 		_, response, err := conn.ReadMessage()
 		if err != nil {
 			FmtPrint(video.Name+" 连接断开: %v", err)
 			return bytes
 		}
-		// 检查特定条件
-		if len(response) > 1 {
-			// 打印数据的长度
-			// FmtPrint("数据长度：", len(bytes))
-			// 拼接数据
-			bytes = append(bytes, response[:]...)
-			// 结束条件
-			if len(bytes) > 1024*1024*video.Size {
-				// 结束
-				return bytes
-			}
+		if len(response) <= 1 {
+			continue
+		}
+		// 消息首字节为类型标记:
+		// 0 = FLV_STREAM_DATA (音视频数据), 4 = RESPONSE (JSON 控制), 其余跳过
+		if response[0] != 0 {
+			continue
+		}
+		// 去掉类型标记，只保留 FLV 裸数据 (含音频 tag=8 + 视频 tag=12)
+		bytes = append(bytes, response[1:]...)
+		if len(bytes) > 1024*1024*video.Size {
+			return bytes
 		}
 	}
 }
