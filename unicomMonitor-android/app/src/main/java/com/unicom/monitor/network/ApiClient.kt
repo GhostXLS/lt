@@ -8,6 +8,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import java.util.concurrent.TimeUnit
 
 class ApiClient(private val context: Context) {
@@ -89,7 +90,7 @@ class ApiClient(private val context: Context) {
             .url("https://iotpservice.smartont.net/wohome/dispatcher")
             .post(
                 RequestBody.create(
-                    MediaType.get("application/json"),
+                    "application/json".toMediaType(),
                     com.google.gson.Gson().toJson(bodyMap)
                 )
             )
@@ -208,7 +209,7 @@ class ApiClient(private val context: Context) {
             mutablePayload["signature"] = vdSign(mutablePayload)
 
             val jsonBytes = com.google.gson.Gson().toJson(mutablePayload)
-            val paramStr = CryptoUtils.encryptParam(String(jsonBytes))
+            val paramStr = CryptoUtils.encryptParam(jsonBytes)
 
             val formBody = FormBody.Builder()
                 .add("_paramStr_", paramStr)

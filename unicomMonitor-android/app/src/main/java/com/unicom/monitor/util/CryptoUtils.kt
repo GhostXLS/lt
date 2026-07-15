@@ -64,9 +64,9 @@ object CryptoUtils {
     fun encryptParam(plaintext: String): String {
         val runes = plaintext.toCharArray()
         val half = runes.size / 2
-        val swapped = String(runes.slice(half until runes.size) + runes.slice(0 until half))
-            .toCharArray()
-        val escaped = jsEscape(swapped.concatToString())
+        val swapped = (runes.slice(half until runes.size) + runes.slice(0 until half))
+            .joinToString("")
+        val escaped = jsEscape(swapped)
         val b64 = android.util.Base64.encodeToString(
             escaped.toByteArray(StandardCharsets.UTF_8),
             android.util.Base64.NO_WRAP
@@ -90,8 +90,7 @@ object CryptoUtils {
         val runes = urlDecoded.toCharArray()
         val l = runes.size
         val half = l / 2
-        return String(runes.slice(l - half until l) + runes.slice(0 until l - half))
-            .toCharArray()
-            .concatToString()
+        return (runes.slice(l - half until l) + runes.slice(0 until l - half))
+            .joinToString("")
     }
 }

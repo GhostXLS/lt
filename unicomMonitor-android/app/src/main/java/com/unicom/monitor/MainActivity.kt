@@ -5,11 +5,12 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
-import android.widget.SurfaceView
+import android.view.SurfaceView
 import androidx.appcompat.app.AppCompatActivity
 import com.google.gson.Gson
 import com.unicom.monitor.model.Config
 import com.unicom.monitor.player.H265Player
+import com.unicom.monitor.service.MonitorService
 import com.unicom.monitor.ui.DeviceListActivity
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -50,7 +51,7 @@ class MainActivity : AppCompatActivity() {
         btnDeviceList = findViewById(R.id.btnDeviceList)
         btnPreview = findViewById(R.id.btnPreview)
         tvStatus = findViewById(R.id.tvStatus)
-        surfaceView = findViewById(R.id.surfaceView)
+        surfaceView = findViewById<SurfaceView>(R.id.surfaceView)
 
         loadConfig()
 

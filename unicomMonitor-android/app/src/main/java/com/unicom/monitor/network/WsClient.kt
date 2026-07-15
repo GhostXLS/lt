@@ -9,6 +9,7 @@ import okio.buffer
 import okio.sink
 import java.io.File
 import java.io.IOException
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 class WsClient(
@@ -31,8 +32,8 @@ class WsClient(
 
     private var ws: WebSocket? = null
     private var recordingJob: Job? = null
-    private var fileSink: okio.Sink? = null
-    private var fileBuffer: Buffer? = null
+    private var fileSink: okio.BufferedSink? = null
+    private var fileBuffer: okio.BufferedSink? = null
     private var isRecording = false
 
     fun start() {
@@ -51,7 +52,8 @@ class WsClient(
                 onStatusChanged("已连接")
                 val paramMsg = buildParamMsg()
                 val message = "_paramStr_=$paramMsg"
-                webSocket.send(okio.ByteString.encodeUtf8(message))
+                val messageBytes = message.toByteArray(StandardCharsets.UTF_8)
+                webSocket.send(okio.ByteString.of(*messageBytes))
                 Log.d(TAG, "Sent paramStr")
             }
 

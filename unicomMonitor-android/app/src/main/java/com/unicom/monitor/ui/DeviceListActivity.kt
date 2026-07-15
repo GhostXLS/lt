@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.unicom.monitor.R
 import com.unicom.monitor.model.Device
 import com.unicom.monitor.network.ApiClient
+import com.unicom.monitor.service.MonitorService
 import kotlinx.coroutines.*
 
 class DeviceListActivity : AppCompatActivity() {

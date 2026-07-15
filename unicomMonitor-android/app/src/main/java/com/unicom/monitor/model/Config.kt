@@ -10,16 +10,3 @@ data class Config(
     val mode: String = "record",
     val dns: String = ""
 )
-
-data class Device(
-    val name: String,
-    val size: Int = 10,
-    val count: Int = 7,
-    val splitMin: Int = 10,
-    val wsHost: String = "",
-    val deviceId: String = "",
-    val channelNo: String = "1",
-    val shareId: String = "",
-    val token: String = "",
-    val relayServer: String = ""
-)
