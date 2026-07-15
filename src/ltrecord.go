@@ -48,80 +48,84 @@ func initWSDialer(dns string) {
 
 // 开始录制
 func GoRecording(config *Config, video *Video) {
-	// 临时变量
 	tempPath := filepath.Join(config.Path, video.Name)
-	// 断开后重连
+	splitDur := time.Duration(video.SplitMin) * time.Minute
+	if splitDur <= 0 {
+		splitDur = 10 * time.Minute
+	}
 	for {
-		// 连接服务器传输数据
-		bytes := linkServer(video)
-		// 检查数据
-		if len(bytes) == 0 {
-			FmtPrint(video.Name + " 连接失败，稍后重连(" + strconv.Itoa(config.Sleep) + "秒)")
-			timeout := time.Duration(config.Sleep)
-			time.Sleep(timeout * time.Second)
-			continue
-		}
-		// 文件名称
-		fileName := getFileName(tempPath) + ".flv"
-		// 保存文件
-		saveFile(fileName, &bytes)
-		// 录制完成
-		FmtPrint(video.Name + " 录制完成：" + fileName)
+		recordPersist(config, video, tempPath, splitDur)
+		FmtPrint(video.Name+" 连接断开，稍后重连("+strconv.Itoa(config.Sleep)+"秒)")
+		time.Sleep(time.Duration(config.Sleep) * time.Second)
 	}
 }
 
-// 连接服务器
-func linkServer(video *Video) []byte {
-	bytes := []byte{}
+func recordPersist(config *Config, video *Video, tempPath string, splitDur time.Duration) {
+	conn := dialServer(video)
+	if conn == nil {
+		return
+	}
+	defer conn.Close()
+	FmtPrint(video.Name + " 已连接，长连接持续录制")
+
+	ticker := time.NewTicker(splitDur)
+	defer ticker.Stop()
+
+	buffer := []byte{}
+	saveAndReset := func() {
+		if len(buffer) == 0 {
+			return
+		}
+		fileName := getFileName(tempPath) + ".flv"
+		saveFile(fileName, &buffer)
+		FmtPrint(video.Name + " 录制片段：" + fileName)
+		buffer = buffer[:0]
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			saveAndReset()
+		default:
+		}
+		conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		_, response, err := conn.ReadMessage()
+		if err != nil {
+			saveAndReset()
+			return
+		}
+		if len(response) <= 1 {
+			continue
+		}
+		if response[0] != 0 {
+			continue
+		}
+		buffer = append(buffer, response[1:]...)
+	}
+}
+
+func dialServer(video *Video) *websocket.Conn {
 	uri := url.URL{
 		Scheme: "wss",
 		Host:   video.WsHost,
 		Path:   "/h5player/live",
 	}
-	// 跳过证书验证 - 使用全局 dialer
-	// 请求头
 	headers := http.Header{}
 	headers.Set("User-Agent", "ChinaUnicom/12.1200 (Android 16)")
-	// 发起连接
 	conn, _, err := wsDialer.Dial(uri.String(), headers)
 	if err != nil {
 		FmtPrint(video.Name+" 无法连接: %v", err)
-		return bytes
+		return nil
 	}
-	defer conn.Close()
-
-	// 发送消息
 	paramMsg := BuildParamMsg(video.Token, video.DeviceId, video.ChannelNo, video.RelayServer, video.Name)
 	message := "_paramStr_=" + paramMsg
-	// FmtPrint(DecryptParam(paramMsg))
 	err = conn.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
 		FmtPrint(video.Name+" 发送消息失败: %v", err)
-		return bytes
+		conn.Close()
+		return nil
 	}
-	FmtPrint(video.Name + " 已连接，开始录制")
-
-		// 接收消息
-	for {
-		_, response, err := conn.ReadMessage()
-		if err != nil {
-			FmtPrint(video.Name+" 连接断开: %v", err)
-			return bytes
-		}
-		if len(response) <= 1 {
-			continue
-		}
-		// 消息首字节为类型标记:
-		// 0 = FLV_STREAM_DATA (音视频数据), 4 = RESPONSE (JSON 控制), 其余跳过
-		if response[0] != 0 {
-			continue
-		}
-		// 去掉类型标记，只保留 FLV 裸数据 (含音频 tag=8 + 视频 tag=12)
-		bytes = append(bytes, response[1:]...)
-		if len(bytes) > 1024*1024*video.Size {
-			return bytes
-		}
-	}
+	return conn
 }
 
 // 获取文件名称

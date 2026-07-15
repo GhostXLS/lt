@@ -31,8 +31,9 @@ type Config struct {
 // 视频录制配置 (video.json 中的每一项)
 type Video struct {
 	Name        string `json:"name"`        // 设备名称
-	Size        int    `json:"size"`        // 截断大小
+	Size        int    `json:"size"`        // 截断大小(MB)
 	Count       int    `json:"count"`       // 保留天数
+	SplitMin    int    `json:"splitMin"`    // 分段时长(分钟), 默认10
 	WsHost      string `json:"wsHost"`      // 连接地址
 	DeviceId    string `json:"deviceId"`    // 设备ID
 	ChannelNo   string `json:"channelNo"`   // 通道号
